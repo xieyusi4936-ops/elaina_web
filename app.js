@@ -1,3 +1,21 @@
+// Defer off-screen artwork so a slow connection can finish the first image first.
+function loadPicture(picture) {
+  if (!picture) return;
+  picture.querySelectorAll('source[data-srcset]').forEach(source => {
+    source.srcset = source.dataset.srcset;
+    source.removeAttribute('data-srcset');
+  });
+  const image = picture.querySelector('img[data-src]');
+  if (image) {image.src = image.dataset.src; image.removeAttribute('data-src');}
+}
+function loadSceneImage(index) {loadPicture(document.querySelectorAll('.scene picture')[index]);}
+const deferredCards = document.querySelectorAll('.cover picture');
+if ('IntersectionObserver' in window) {
+  const artworkObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {if(entry.isIntersecting){loadPicture(entry.target);artworkObserver.unobserve(entry.target);}});
+  },{rootMargin:'150px'});
+  deferredCards.forEach(picture => artworkObserver.observe(picture));
+} else {deferredCards.forEach(loadPicture);}
 // Retry failed modern image sources once using the compatible JPEG fallback.
 function useImageFallback(image) {
   if (!image.dataset.fallback || image.dataset.retried) return;
@@ -7,7 +25,7 @@ function useImageFallback(image) {
 }
 document.querySelectorAll('img[data-fallback]').forEach(image => {
   image.addEventListener('error', () => useImageFallback(image));
-  if (image.complete && !image.naturalWidth) useImageFallback(image);
+  if (image.hasAttribute('src') && image.complete && !image.naturalWidth) useImageFallback(image);
 });
 const scenes = [...document.querySelectorAll('.scene')];
 const story = document.querySelector('.story');
@@ -18,6 +36,7 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let current = -1;
 function stepSize() { return (story.offsetHeight - innerHeight) / 2; }
 function showScene(index) {
+  loadSceneImage(index);
   if (index === current) return;
   current = index;
   scenes.forEach((scene, i) => { scene.classList.toggle('active', i === index); scene.inert = i !== index; scene.setAttribute('aria-hidden', String(i !== index)); });
@@ -48,6 +67,7 @@ function continueToDesired() {
   if (playback || desired === current) return;
   if (reduceMotion || desired < current || current < 0) { showScene(desired); return; }
   const destination = current + 1;
+  loadSceneImage(destination);
   const video = videos[current];
   const active = { video, destination, timer: null };
   playback = active;
