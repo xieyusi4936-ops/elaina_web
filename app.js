@@ -50,14 +50,38 @@ const layer = document.querySelector('.transition-layer');
 const videos = [...document.querySelectorAll('.transition-video')];
 let desired = 0;
 let playback = null;
+const preparedVideos = new Map();
+// Download a complete local copy before playback, so slow delivery cannot stall frames.
+function prepareVideo(index) {
+  if (preparedVideos.has(index)) return preparedVideos.get(index);
+  const video = videos[index];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  const promise = fetch(video.dataset.src, {signal:controller.signal,cache:'force-cache',priority:'low'})
+    .then(response => {if(!response.ok)throw new Error('Video unavailable');return response.blob();})
+    .then(blob => {
+      if (!blob.size) throw new Error('Empty video');
+      const url = URL.createObjectURL(blob);
+      video.src = url;
+      video.preload = 'auto';
+      video.load();
+      return true;
+    })
+    .catch(() => {preparedVideos.delete(index);return false;})
+    .finally(() => clearTimeout(timeout));
+  preparedVideos.set(index,promise);
+  return promise;
+}
 function stopPlayback() {
   if (!playback) return;
   const active = playback;
   playback = null;
   clearTimeout(active.timer);
+  clearTimeout(active.stallTimer);
   active.video.onended = null;
   active.video.onerror = null;
   active.video.onplaying = null;
+  active.video.onwaiting = null;
   active.video.pause();
   layer.classList.remove('visible');
   stage.classList.remove('transitioning');
@@ -75,24 +99,33 @@ function continueToDesired() {
     if (playback !== active) return;
     stopPlayback();
     showScene(destination);
+    if (destination === 1 && !reduceMotion) prepareVideo(1);
     continueToDesired();
   };
   videos.forEach(item => item.classList.toggle('selected', item === video));
   stage.setAttribute('aria-busy', 'true');
   video.muted = true;
   resetWater();
-  if (!video.getAttribute('src')) video.src = video.dataset.src;
-  video.currentTime = 0;
+
   video.onplaying = () => {
     if (playback !== active) return;
+    clearTimeout(active.stallTimer);
     layer.classList.add('visible');
     stage.classList.add('transitioning');
   };
   video.onended = finish;
   video.onerror = finish;
-  // Network errors or a denied play request must never block navigation.
-  active.timer = setTimeout(finish, 8000);
-  video.play().catch(finish);
+  // Keep the resting image visible while waiting; don't trap a slow connection.
+  video.onwaiting = () => {clearTimeout(active.stallTimer);active.stallTimer=setTimeout(finish,800);};
+  active.timer = setTimeout(finish, 1400);
+  prepareVideo(current).then(ready => {
+    if (playback !== active) return;
+    if (!ready) {finish();return;}
+    clearTimeout(active.timer);
+    active.timer = setTimeout(finish,6500);
+    video.currentTime = 0;
+    video.play().catch(finish);
+  });
 }
 function requestScene(index, skipAnimation = false) {
   desired = index;
@@ -231,3 +264,12 @@ addEventListener('visibilitychange',()=>{if(document.hidden)resetWater();});
 dialog.addEventListener('close',resetWater);
 
 update();
+
+// Warm just the first transition after the first image has finished; never race first paint.
+const firstArtwork = document.querySelector('.scene-0 img');
+function warmFirstTransition() {
+  if (reduceMotion || navigator.connection?.saveData) return;
+  setTimeout(() => {if(!document.hidden) prepareVideo(0);},1500);
+}
+if(firstArtwork.complete && firstArtwork.naturalWidth)warmFirstTransition();
+else firstArtwork.addEventListener('load',warmFirstTransition,{once:true});
