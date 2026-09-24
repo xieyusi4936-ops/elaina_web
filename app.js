@@ -21,7 +21,7 @@ function useImageFallback(image) {
   if (!image.dataset.fallback || image.dataset.retried) return;
   image.dataset.retried = 'true';
   image.closest('picture')?.querySelectorAll('source').forEach(source => source.remove());
-  image.src = image.dataset.fallback;
+  image.src = matchMedia('(max-width: 700px)').matches && image.dataset.mobileFallback ? image.dataset.mobileFallback : image.dataset.fallback;
 }
 document.querySelectorAll('img[data-fallback]').forEach(image => {
   image.addEventListener('error', () => useImageFallback(image));

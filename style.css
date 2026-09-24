@@ -45,3 +45,9 @@
  .scene>picture{-webkit-mask-image:linear-gradient(to bottom,#000 calc(50% + min(31.25vw,41.6667%)),transparent calc(50% + min(37.5vw,50%)));mask-image:linear-gradient(to bottom,#000 calc(50% + min(31.25vw,41.6667%)),transparent calc(50% + min(37.5vw,50%)))}
  .transition-layer{-webkit-mask-image:linear-gradient(to bottom,#000 calc(25% + min(31.25vw,20.8333%)),transparent calc(25% + min(37.5vw,25%)));mask-image:linear-gradient(to bottom,#000 calc(25% + min(31.25vw,20.8333%)),transparent calc(25% + min(37.5vw,25%)))}
 }
+
+/* The mobile opening poster has its own portrait composition. */
+@media(max-width:700px){
+ .scene-0 img,.scene-0.active img{transform:none;object-fit:contain;object-position:center}
+ .scene-0>picture{-webkit-mask-image:linear-gradient(to bottom,#000 91.6667%,transparent 100%);mask-image:linear-gradient(to bottom,#000 91.6667%,transparent 100%)}
+}
