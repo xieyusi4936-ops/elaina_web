@@ -31,3 +31,11 @@
  .timeline{padding-top:12px}
  .text-link{padding:10px 0}
 }
+
+/* Double mobile intro media within its existing upper-half viewport. */
+@media(max-width:700px){
+ .scene>picture{display:block;position:absolute;inset:0 0 auto;height:50%;overflow:hidden}
+ .scene img,.scene-0 img,.scene-1 img,.scene-2 img,.scene.active img{height:100%;transform:scale(2);transform-origin:center;transition:none}
+ .transition-video{transform:scale(2);transform-origin:center}
+ .transition-layer{clip-path:inset(0 0 50% 0)}
+}
