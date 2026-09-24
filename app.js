@@ -1,3 +1,14 @@
+// Retry failed modern image sources once using the compatible JPEG fallback.
+function useImageFallback(image) {
+  if (!image.dataset.fallback || image.dataset.retried) return;
+  image.dataset.retried = 'true';
+  image.closest('picture')?.querySelectorAll('source').forEach(source => source.remove());
+  image.src = image.dataset.fallback;
+}
+document.querySelectorAll('img[data-fallback]').forEach(image => {
+  image.addEventListener('error', () => useImageFallback(image));
+  if (image.complete && !image.naturalWidth) useImageFallback(image);
+});
 const scenes = [...document.querySelectorAll('.scene')];
 const story = document.querySelector('.story');
 const dots = [...document.querySelectorAll('.scene-dots button')];
@@ -60,7 +71,7 @@ function continueToDesired() {
   video.onended = finish;
   video.onerror = finish;
   // Network errors or a denied play request must never block navigation.
-  active.timer = setTimeout(finish, 15000);
+  active.timer = setTimeout(finish, 8000);
   video.play().catch(finish);
 }
 function requestScene(index, skipAnimation = false) {
@@ -93,7 +104,7 @@ document.querySelectorAll('[data-project]').forEach(button => button.addEventLis
   const project = projects[Number(button.dataset.project)];
   opener = button;
   document.querySelector('#project-title').textContent = project.title;
-  const image = document.querySelector('#detail-image'); image.src = project.image; image.alt = project.alt;
+  const image = document.querySelector('#detail-image'); image.src = project.image.replace('.webp', matchMedia('(max-width: 700px)').matches ? '-mobile.jpg' : '-fallback.jpg'); image.alt = project.alt;
   document.body.classList.add('modal-open'); dialog.showModal(); dialog.scrollTop = 0;
 }));
 document.querySelectorAll('.close,.close-bottom').forEach(button => button.addEventListener('click', () => dialog.close()));
@@ -129,7 +140,7 @@ for (let y = 0; y < 192; y++) for (let x = 0; x < 192; x++) {
 }
 normalContext.putImageData(normalPixels,0,0);
 const normalMap = normalCanvas.toDataURL();
-const waterMedia = [...document.querySelectorAll('.scene > img,.cover img,#detail-image')];
+const waterMedia = [...document.querySelectorAll('.scene img,.cover img,#detail-image')];
 const waterFilters = new Map();
 function filterFor(media) {
   if (waterFilters.has(media)) return waterFilters.get(media);
