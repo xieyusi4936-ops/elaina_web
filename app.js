@@ -99,70 +99,94 @@ document.querySelectorAll('.close,.close-bottom').forEach(button => button.addEv
 dialog.addEventListener('click', event => { if (event.target === dialog) { const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close(); } });
 dialog.addEventListener('close', () => { document.body.classList.remove('modal-open'); opener?.focus({preventScroll:true}); });
 
-// A light, transient water trail. Drawing sleeps whenever there are no ripples.
-const rippleCanvas = document.querySelector('body > .water-ripples');
-const rippleContext = rippleCanvas.getContext('2d');
-const modalCanvas = document.querySelector('.dialog-ripples');
-const modalContext = modalCanvas.getContext('2d');
-const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
-const finePointer = matchMedia('(pointer: fine)');
-let ripples = [];
-let rippleFrame = 0;
-let lastRipple = {x: -1000, y: -1000, time: 0};
-let rippleWidth = 0, rippleHeight = 0;
-function sizeRipples() {
-  rippleWidth = innerWidth; rippleHeight = innerHeight;
-  const ratio = Math.min(devicePixelRatio || 1, 2);
-  for (const canvas of [rippleCanvas, modalCanvas]) {
-    canvas.width = Math.round(rippleWidth * ratio);
-    canvas.height = Math.round(rippleHeight * ratio);
-    canvas.getContext('2d').setTransform(ratio, 0, 0, ratio, 0, 0);
-  }
+// Refraction distorts the original media pixels. No painted rings or tint overlay.
+const waterMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const waterPointer = matchMedia('(pointer: fine)');
+const svgNamespace = 'http://www.w3.org/2000/svg';
+function svgNode(name, attributes = {}) {
+  const node = document.createElementNS(svgNamespace, name);
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+  return node;
 }
-function drawRipples(now) {
-  rippleContext.clearRect(0, 0, rippleWidth, rippleHeight);
-  modalContext.clearRect(0, 0, rippleWidth, rippleHeight);
-  ripples = ripples.filter(ripple => now - ripple.born < 1200);
-  const context = dialog.open ? modalContext : rippleContext;
-  const bounds = {left:0,top:0};
-  for (const ripple of ripples) {
-    const age = (now - ripple.born) / 1200;
-    const opacity = (1 - age) ** 2;
-    const radius = 5 + 83 * (1 - (1 - age) ** 2);
-    for (let ring = 0; ring < 3; ring++) {
-      const r = radius - ring * 7;
-      if (r < 3) continue;
-      const x = ripple.x - bounds.left, y = ripple.y - bounds.top;
-      context.beginPath();
-      context.ellipse(x, y, r, r * .72, -.2, 0, Math.PI * 2);
-      context.strokeStyle = `rgba(12, 38, 72, ${opacity * .24 / (ring + 1)})`;
-      context.lineWidth = 3;
-      context.stroke();
-      context.beginPath();
-      context.ellipse(x, y - 1, r, r * .72, -.2, 0, Math.PI * 2);
-      context.strokeStyle = `rgba(192, 232, 255, ${opacity * .5 / (ring + 1)})`;
-      context.lineWidth = .9;
-      context.stroke();
-    }
-  }
-  rippleFrame = ripples.length ? requestAnimationFrame(drawRipples) : 0;
+const waterDefinitions = svgNode('svg', {'aria-hidden':'true',class:'water-filter-definitions'});
+const waterDefs = svgNode('defs');
+waterDefinitions.append(waterDefs); document.body.append(waterDefinitions);
+// R/G encode the horizontal/vertical surface normal; neutral gray leaves pixels unchanged.
+const normalCanvas = document.createElement('canvas'); normalCanvas.width = normalCanvas.height = 192;
+const normalContext = normalCanvas.getContext('2d');
+const normalPixels = normalContext.createImageData(192,192);
+for (let y = 0; y < 192; y++) for (let x = 0; x < 192; x++) {
+  const dx = (x - 95.5) / 95.5, dy = (y - 95.5) / 95.5;
+  const radius = Math.hypot(dx,dy);
+  const envelope = radius < 1 ? Math.sin(Math.PI * radius) ** 2 * (1 - radius) : 0;
+  const wave = Math.sin(radius * Math.PI * 5) * envelope * 2.4;
+  const index = (y * 192 + x) * 4;
+  normalPixels.data[index] = 128 + 115 * dx / (radius || 1) * wave;
+  normalPixels.data[index+1] = 128 + 115 * dy / (radius || 1) * wave;
+  normalPixels.data[index+2] = 128;
+  normalPixels.data[index+3] = 255;
 }
-function clearRipples() {
-  cancelAnimationFrame(rippleFrame); rippleFrame = 0; ripples = [];
-  rippleContext.clearRect(0, 0, rippleWidth, rippleHeight);
-  modalContext.clearRect(0, 0, rippleWidth, rippleHeight);
+normalContext.putImageData(normalPixels,0,0);
+const normalMap = normalCanvas.toDataURL();
+const waterMedia = [...document.querySelectorAll('.scene > img,.transition-video,.cover img,#detail-image')];
+const waterFilters = new Map();
+function filterFor(media) {
+  if (waterFilters.has(media)) return waterFilters.get(media);
+  const id = `water-refraction-${waterFilters.size}`;
+  const filter = svgNode('filter',{id,x:'0%',y:'0%',width:'100%',height:'100%','color-interpolation-filters':'sRGB'});
+  filter.append(svgNode('feFlood',{'flood-color':'rgb(128,128,128)',result:'neutral'}));
+  const waves = [];
+  for (let i = 0; i < 3; i++) {
+    const map = svgNode('feImage',{href:normalMap,x:0,y:0,width:1,height:1,preserveAspectRatio:'none',result:`normal-${i}`});
+    const composite = svgNode('feComposite',{in:`normal-${i}`,in2:'neutral',operator:'over',result:`map-${i}`});
+    const displacement = svgNode('feDisplacementMap',{in:i ? `wave-${i-1}`:'SourceGraphic',in2:`map-${i}`,scale:0,xChannelSelector:'R',yChannelSelector:'G',result:`wave-${i}`});
+    filter.append(map,composite,displacement); waves.push({map,displacement});
+  }
+  waterDefs.append(filter);
+  const entry = {id,waves}; waterFilters.set(media,entry); return entry;
+}
+let waterWaves = [], waterFrame = 0;
+let lastWater = {x:-1000,y:-1000,time:0};
+function resetWater() {
+  cancelAnimationFrame(waterFrame); waterFrame = 0; waterWaves = [];
+  waterMedia.forEach(media => media.style.removeProperty('filter'));
+}
+function renderWater(now) {
+  waterWaves = waterWaves.filter(wave => now - wave.born < 1100);
+  for (const media of waterMedia) {
+    const scene = media.closest('.scene');
+    const hidden = (dialog.open && media.id !== 'detail-image') || (scene && !scene.classList.contains('active')) || (media.tagName === 'VIDEO' && (!layer.classList.contains('visible') || !media.classList.contains('selected')));
+    const rect = media.getBoundingClientRect();
+    const nearby = hidden ? [] : waterWaves.filter(wave => wave.x > rect.left - 120 && wave.x < rect.right + 120 && wave.y > rect.top - 120 && wave.y < rect.bottom + 120);
+    if (!nearby.length || !rect.width || rect.bottom < 0 || rect.top > innerHeight) {media.style.removeProperty('filter'); continue;}
+    const entry = filterFor(media);
+    const sx = media.clientWidth / rect.width, sy = media.clientHeight / rect.height;
+    nearby.slice(-3).forEach((wave,i) => {
+      const age = (now - wave.born) / 1100;
+      const size = 120 + age * 240;
+      const strength = Math.sin(Math.min(1,age * 8) * Math.PI / 2) * (1 - age) ** 1.8;
+      const {map,displacement} = entry.waves[i];
+      map.setAttribute('x',(wave.x - rect.left - size/2)*sx);
+      map.setAttribute('y',(wave.y - rect.top - size/2)*sy);
+      map.setAttribute('width',size*sx); map.setAttribute('height',size*sy);
+      displacement.setAttribute('scale',(26 * strength * sx).toFixed(2));
+    });
+    for(let i=nearby.length;i<3;i++) entry.waves[i].displacement.setAttribute('scale',0);
+    media.style.filter = `url(#${entry.id})`;
+  }
+  waterFrame = waterWaves.length ? requestAnimationFrame(renderWater) : 0;
 }
 addEventListener('pointermove', event => {
-  if (motionPreference.matches || !finePointer.matches || event.pointerType === 'touch') return;
+  if (waterMotion.matches || !waterPointer.matches || event.pointerType === 'touch') return;
   const now = performance.now();
-  if (now - lastRipple.time < 45 || Math.hypot(event.clientX - lastRipple.x, event.clientY - lastRipple.y) < 13) return;
-  lastRipple = {x:event.clientX, y:event.clientY, time:now};
-  ripples.push({x:event.clientX, y:event.clientY, born:now});
-  if (ripples.length > 24) ripples.shift();
-  if (!rippleFrame) rippleFrame = requestAnimationFrame(drawRipples);
-}, {passive:true});
-addEventListener('resize', () => {clearRipples(); sizeRipples();});
-motionPreference.addEventListener('change', clearRipples);
-addEventListener('visibilitychange', () => {if (document.hidden) clearRipples();});
-dialog.addEventListener('close', clearRipples);
-sizeRipples();
+  if (now - lastWater.time < 85 || Math.hypot(event.clientX-lastWater.x,event.clientY-lastWater.y)<10) return;
+  lastWater = {x:event.clientX,y:event.clientY,time:now};
+  waterWaves.push({x:event.clientX,y:event.clientY,born:now});
+  if (waterWaves.length>3) waterWaves.shift();
+  if (!waterFrame) waterFrame = requestAnimationFrame(renderWater);
+},{passive:true});
+addEventListener('resize',resetWater);
+addEventListener('scroll',resetWater,{passive:true});
+waterMotion.addEventListener('change',resetWater);
+addEventListener('visibilitychange',()=>{if(document.hidden)resetWater();});
+dialog.addEventListener('close',resetWater);
