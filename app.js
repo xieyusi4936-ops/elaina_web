@@ -15,13 +15,75 @@ function showScene(index) {
   next.innerHTML = `${index === 2 ? '浏览作品' : '向下探索'} <span>↓</span>`;
   next.setAttribute('aria-label', index === 2 ? '浏览作品' : '下一幕');
 }
-function update() { showScene(Math.max(0, Math.min(2, Math.round((scrollY - story.offsetTop) / stepSize())))); }
+const stage = document.querySelector('.stage');
+const layer = document.querySelector('.transition-layer');
+const videos = [...document.querySelectorAll('.transition-video')];
+let desired = 0;
+let playback = null;
+function stopPlayback() {
+  if (!playback) return;
+  const active = playback;
+  playback = null;
+  clearTimeout(active.timer);
+  active.video.onended = null;
+  active.video.onerror = null;
+  active.video.onplaying = null;
+  active.video.pause();
+  layer.classList.remove('visible');
+  stage.classList.remove('transitioning');
+  stage.removeAttribute('aria-busy');
+}
+function continueToDesired() {
+  if (playback || desired === current) return;
+  if (reduceMotion || desired < current || current < 0) { showScene(desired); return; }
+  const destination = current + 1;
+  const video = videos[current];
+  const active = { video, destination, timer: null };
+  playback = active;
+  const finish = () => {
+    if (playback !== active) return;
+    stopPlayback();
+    showScene(destination);
+    continueToDesired();
+  };
+  videos.forEach(item => item.classList.toggle('selected', item === video));
+  stage.setAttribute('aria-busy', 'true');
+  video.muted = true;
+  video.currentTime = 0;
+  video.onplaying = () => {
+    if (playback !== active) return;
+    layer.classList.add('visible');
+    stage.classList.add('transitioning');
+  };
+  video.onended = finish;
+  video.onerror = finish;
+  // Network errors or a denied play request must never block navigation.
+  active.timer = setTimeout(finish, 15000);
+  video.play().catch(finish);
+}
+function requestScene(index, skipAnimation = false) {
+  desired = index;
+  if (skipAnimation || reduceMotion || (playback && index < playback.destination)) {
+    stopPlayback();
+    showScene(index);
+    return;
+  }
+  continueToDesired();
+}
+function update() {
+  const index = Math.max(0, Math.min(2, Math.round((scrollY - story.offsetTop) / stepSize())));
+  const outside = scrollY >= story.offsetTop + story.offsetHeight - innerHeight + 80;
+  requestScene(index, outside || document.hidden);
+}
+addEventListener('visibilitychange', () => { if (document.hidden) { stopPlayback(); showScene(desired); } });
 let queued = false;
 addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(() => { update(); queued = false; }); } }, { passive: true });
 addEventListener('resize', update);
-function goToScene(index) { scrollTo({ top: story.offsetTop + stepSize() * index, behavior: reduceMotion ? 'instant' : 'smooth' }); }
+function goToScene(index) { scrollTo({ top: story.offsetTop + stepSize() * index, behavior: 'instant' }); update(); }
 document.querySelectorAll('[data-scene]').forEach(button => button.addEventListener('click', () => goToScene(Number(button.dataset.scene))));
-next.addEventListener('click', () => current < 2 ? goToScene(current + 1) : document.querySelector('#projects').scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth' }));
+next.addEventListener('click', () => desired < 2 ? goToScene(desired + 1) : document.querySelector('#projects').scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth' }));
+showScene(Math.max(0, Math.min(2, Math.round((scrollY - story.offsetTop) / stepSize()))));
+desired = current;
 update();
 const projects = [{title:'初次见面',image:'assets/scene-1.jpg',alt:'银色 Elaina Design 字样与伸手的角色'}, {title:'靠近我的世界',image:'assets/scene-2.jpg',alt:'伸手打招呼的 Elaina 角色'}, {title:'创作进行时',image:'assets/scene-3.jpg',alt:'角色与设计软件方块'}];
 const dialog = document.querySelector('#project-dialog');
