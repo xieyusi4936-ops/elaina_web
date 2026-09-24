@@ -12,9 +12,9 @@ function loadSceneImage(index) {loadPicture(document.querySelectorAll('.scene pi
 const deferredCards = document.querySelectorAll('.cover picture');
 if ('IntersectionObserver' in window) {
   const artworkObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {if(entry.isIntersecting){loadPicture(entry.target);artworkObserver.unobserve(entry.target);}});
+    entries.forEach(entry => {if(entry.isIntersecting){loadPicture(entry.target.querySelector('picture'));artworkObserver.unobserve(entry.target);}});
   },{rootMargin:'150px'});
-  deferredCards.forEach(picture => artworkObserver.observe(picture));
+  deferredCards.forEach(picture => artworkObserver.observe(picture.parentElement));
 } else {deferredCards.forEach(loadPicture);}
 // Retry failed modern image sources once using the compatible JPEG fallback.
 function useImageFallback(image) {
