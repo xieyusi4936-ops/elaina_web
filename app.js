@@ -104,7 +104,7 @@ document.querySelectorAll('[data-project]').forEach(button => button.addEventLis
   const project = projects[Number(button.dataset.project)];
   opener = button;
   document.querySelector('#project-title').textContent = project.title;
-  const image = document.querySelector('#detail-image'); image.src = project.image.replace('.webp', matchMedia('(max-width: 700px)').matches ? '-mobile.jpg' : '-fallback.jpg'); image.alt = project.alt;
+  const image = document.querySelector('#detail-image'); image.src = project.image.replace('.webp', matchMedia('(max-width: 700px)').matches ? '-mobile-v2.jpg' : '-fallback-v2.jpg'); image.alt = project.alt;
   document.body.classList.add('modal-open'); dialog.showModal(); dialog.scrollTop = 0;
 }));
 document.querySelectorAll('.close,.close-bottom').forEach(button => button.addEventListener('click', () => dialog.close()));

@@ -11,3 +11,23 @@
 .water-filter-definitions{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
 
 .scene>picture{display:contents}.cover>picture{display:contents}
+
+/* Mobile: complete landscape artwork above, readable information below. */
+@media(max-width:700px){
+ .stage{background:#101a32}
+ .scene img,.scene-0 img,.scene-1 img,.scene-2 img{position:absolute;top:0;left:0;width:100%;height:50%;object-fit:contain;object-position:center;transform:none}
+ .scene.active img{transform:none}
+ .scene-0:after{inset:50% 0 0;background:none}
+ .scene-1:after,.scene-2:after{background:none}
+ .intro,.experience{top:52%;bottom:90px;left:7%;right:7%;width:auto;max-width:none;max-height:calc(48% - 90px);overflow:auto;transform:none;padding-bottom:8px}
+ .active .intro,.active .experience{transform:none}
+ .intro h1,.experience h2{font-size:32px;line-height:1.15;margin:10px 0 14px}
+ .intro .lead{margin-bottom:10px}
+ .intro .small-copy,.timeline .small-copy{font-size:14px;line-height:1.7}
+ .hero-caption{top:56%;bottom:auto;left:7%}
+ .hero-caption p{font-size:30px}
+ .transition-video{height:50%;object-fit:contain;object-position:center}
+ .transition-layer{background:#101a32}
+ .timeline{padding-top:12px}
+ .text-link{padding:10px 0}
+}
