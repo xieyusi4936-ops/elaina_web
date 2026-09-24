@@ -49,6 +49,8 @@ function continueToDesired() {
   videos.forEach(item => item.classList.toggle('selected', item === video));
   stage.setAttribute('aria-busy', 'true');
   video.muted = true;
+  resetWater();
+  if (!video.getAttribute('src')) video.src = video.dataset.src;
   video.currentTime = 0;
   video.onplaying = () => {
     if (playback !== active) return;
@@ -84,8 +86,7 @@ document.querySelectorAll('[data-scene]').forEach(button => button.addEventListe
 next.addEventListener('click', () => desired < 2 ? goToScene(desired + 1) : document.querySelector('#projects').scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth' }));
 showScene(Math.max(0, Math.min(2, Math.round((scrollY - story.offsetTop) / stepSize()))));
 desired = current;
-update();
-const projects = [{title:'初次见面',image:'assets/scene-1.jpg',alt:'银色 Elaina Design 字样与伸手的角色'}, {title:'靠近我的世界',image:'assets/scene-2.jpg',alt:'伸手打招呼的 Elaina 角色'}, {title:'创作进行时',image:'assets/scene-3.jpg',alt:'角色与设计软件方块'}];
+const projects = [{title:'初次见面',image:'assets/scene-1.webp',alt:'银色 Elaina Design 字样与伸手的角色'}, {title:'靠近我的世界',image:'assets/scene-2.webp',alt:'伸手打招呼的 Elaina 角色'}, {title:'创作进行时',image:'assets/scene-3.webp',alt:'角色与设计软件方块'}];
 const dialog = document.querySelector('#project-dialog');
 let opener;
 document.querySelectorAll('[data-project]').forEach(button => button.addEventListener('click', () => {
@@ -128,7 +129,7 @@ for (let y = 0; y < 192; y++) for (let x = 0; x < 192; x++) {
 }
 normalContext.putImageData(normalPixels,0,0);
 const normalMap = normalCanvas.toDataURL();
-const waterMedia = [...document.querySelectorAll('.scene > img,.transition-video,.cover img,#detail-image')];
+const waterMedia = [...document.querySelectorAll('.scene > img,.cover img,#detail-image')];
 const waterFilters = new Map();
 function filterFor(media) {
   if (waterFilters.has(media)) return waterFilters.get(media);
@@ -136,7 +137,7 @@ function filterFor(media) {
   const filter = svgNode('filter',{id,x:'0%',y:'0%',width:'100%',height:'100%','color-interpolation-filters':'sRGB'});
   filter.append(svgNode('feFlood',{'flood-color':'rgb(128,128,128)',result:'neutral'}));
   const waves = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 1; i++) {
     const map = svgNode('feImage',{href:normalMap,x:0,y:0,width:1,height:1,preserveAspectRatio:'none',result:`normal-${i}`});
     const composite = svgNode('feComposite',{in:`normal-${i}`,in2:'neutral',operator:'over',result:`map-${i}`});
     const displacement = svgNode('feDisplacementMap',{in:i ? `wave-${i-1}`:'SourceGraphic',in2:`map-${i}`,scale:0,xChannelSelector:'R',yChannelSelector:'G',result:`wave-${i}`});
@@ -151,38 +152,45 @@ function resetWater() {
   cancelAnimationFrame(waterFrame); waterFrame = 0; waterWaves = [];
   waterMedia.forEach(media => media.style.removeProperty('filter'));
 }
+let lastWaterFrame = 0;
 function renderWater(now) {
-  waterWaves = waterWaves.filter(wave => now - wave.born < 1100);
-  for (const media of waterMedia) {
+  if (playback || waterMotion.matches || document.hidden) {resetWater(); return;}
+  // Limit expensive filter paints to 30fps; collect layout before any SVG writes.
+  if (now - lastWaterFrame < 33) {waterFrame = requestAnimationFrame(renderWater); return;}
+  lastWaterFrame = now;
+  waterWaves = waterWaves.filter(wave => now - wave.born < 850);
+  const wave = waterWaves[0];
+  const measurements = waterMedia.map(media => {
     const scene = media.closest('.scene');
-    const hidden = (dialog.open && media.id !== 'detail-image') || (scene && !scene.classList.contains('active')) || (media.tagName === 'VIDEO' && (!layer.classList.contains('visible') || !media.classList.contains('selected')));
-    const rect = media.getBoundingClientRect();
-    const nearby = hidden ? [] : waterWaves.filter(wave => wave.x > rect.left - 120 && wave.x < rect.right + 120 && wave.y > rect.top - 120 && wave.y < rect.bottom + 120);
-    if (!nearby.length || !rect.width || rect.bottom < 0 || rect.top > innerHeight) {media.style.removeProperty('filter'); continue;}
+    if ((dialog.open && media.id !== 'detail-image') || (!dialog.open && media.id === 'detail-image') || (scene && !scene.classList.contains('active'))) return {media};
+    return {media,rect:media.getBoundingClientRect(),width:media.clientWidth,height:media.clientHeight};
+  });
+  let affected = false;
+  for (const {media,rect,width,height} of measurements) {
+    const nearby = wave && rect && rect.width && rect.bottom > 0 && rect.top < innerHeight && wave.x > rect.left && wave.x < rect.right && wave.y > rect.top && wave.y < rect.bottom;
+    if (!nearby || affected) {if(media.style.filter)media.style.removeProperty('filter');continue;}
+    affected = true;
     const entry = filterFor(media);
-    const sx = media.clientWidth / rect.width, sy = media.clientHeight / rect.height;
-    nearby.slice(-3).forEach((wave,i) => {
-      const age = (now - wave.born) / 1100;
-      const size = 120 + age * 240;
-      const strength = Math.sin(Math.min(1,age * 8) * Math.PI / 2) * (1 - age) ** 1.8;
-      const {map,displacement} = entry.waves[i];
-      map.setAttribute('x',(wave.x - rect.left - size/2)*sx);
-      map.setAttribute('y',(wave.y - rect.top - size/2)*sy);
-      map.setAttribute('width',size*sx); map.setAttribute('height',size*sy);
-      displacement.setAttribute('scale',(26 * strength * sx).toFixed(2));
-    });
-    for(let i=nearby.length;i<3;i++) entry.waves[i].displacement.setAttribute('scale',0);
-    media.style.filter = `url(#${entry.id})`;
+    const sx = width / rect.width, sy = height / rect.height;
+    const age = (now - wave.born) / 850;
+    const size = 120 + age * 180;
+    const strength = Math.sin(Math.min(1,age * 8) * Math.PI / 2) * (1 - age) ** 1.8;
+    const {map,displacement} = entry.waves[0];
+    map.setAttribute('x',(wave.x - rect.left - size/2)*sx);
+    map.setAttribute('y',(wave.y - rect.top - size/2)*sy);
+    map.setAttribute('width',size*sx); map.setAttribute('height',size*sy);
+    displacement.setAttribute('scale',(24 * strength * sx).toFixed(2));
+    if (!media.style.filter) media.style.filter = `url(#${entry.id})`;
   }
   waterFrame = waterWaves.length ? requestAnimationFrame(renderWater) : 0;
 }
 addEventListener('pointermove', event => {
-  if (waterMotion.matches || !waterPointer.matches || event.pointerType === 'touch') return;
+  if (playback || waterMotion.matches || !waterPointer.matches || event.pointerType === 'touch') return;
   const now = performance.now();
   if (now - lastWater.time < 85 || Math.hypot(event.clientX-lastWater.x,event.clientY-lastWater.y)<10) return;
   lastWater = {x:event.clientX,y:event.clientY,time:now};
   waterWaves.push({x:event.clientX,y:event.clientY,born:now});
-  if (waterWaves.length>3) waterWaves.shift();
+  if (waterWaves.length>1) waterWaves.shift();
   if (!waterFrame) waterFrame = requestAnimationFrame(renderWater);
 },{passive:true});
 addEventListener('resize',resetWater);
@@ -190,3 +198,5 @@ addEventListener('scroll',resetWater,{passive:true});
 waterMotion.addEventListener('change',resetWater);
 addEventListener('visibilitychange',()=>{if(document.hidden)resetWater();});
 dialog.addEventListener('close',resetWater);
+
+update();
