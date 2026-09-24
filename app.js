@@ -98,3 +98,71 @@ document.querySelectorAll('[data-project]').forEach(button => button.addEventLis
 document.querySelectorAll('.close,.close-bottom').forEach(button => button.addEventListener('click', () => dialog.close()));
 dialog.addEventListener('click', event => { if (event.target === dialog) { const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close(); } });
 dialog.addEventListener('close', () => { document.body.classList.remove('modal-open'); opener?.focus({preventScroll:true}); });
+
+// A light, transient water trail. Drawing sleeps whenever there are no ripples.
+const rippleCanvas = document.querySelector('body > .water-ripples');
+const rippleContext = rippleCanvas.getContext('2d');
+const modalCanvas = document.querySelector('.dialog-ripples');
+const modalContext = modalCanvas.getContext('2d');
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+const finePointer = matchMedia('(pointer: fine)');
+let ripples = [];
+let rippleFrame = 0;
+let lastRipple = {x: -1000, y: -1000, time: 0};
+let rippleWidth = 0, rippleHeight = 0;
+function sizeRipples() {
+  rippleWidth = innerWidth; rippleHeight = innerHeight;
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  for (const canvas of [rippleCanvas, modalCanvas]) {
+    canvas.width = Math.round(rippleWidth * ratio);
+    canvas.height = Math.round(rippleHeight * ratio);
+    canvas.getContext('2d').setTransform(ratio, 0, 0, ratio, 0, 0);
+  }
+}
+function drawRipples(now) {
+  rippleContext.clearRect(0, 0, rippleWidth, rippleHeight);
+  modalContext.clearRect(0, 0, rippleWidth, rippleHeight);
+  ripples = ripples.filter(ripple => now - ripple.born < 1200);
+  const context = dialog.open ? modalContext : rippleContext;
+  const bounds = {left:0,top:0};
+  for (const ripple of ripples) {
+    const age = (now - ripple.born) / 1200;
+    const opacity = (1 - age) ** 2;
+    const radius = 5 + 83 * (1 - (1 - age) ** 2);
+    for (let ring = 0; ring < 3; ring++) {
+      const r = radius - ring * 7;
+      if (r < 3) continue;
+      const x = ripple.x - bounds.left, y = ripple.y - bounds.top;
+      context.beginPath();
+      context.ellipse(x, y, r, r * .72, -.2, 0, Math.PI * 2);
+      context.strokeStyle = `rgba(12, 38, 72, ${opacity * .24 / (ring + 1)})`;
+      context.lineWidth = 3;
+      context.stroke();
+      context.beginPath();
+      context.ellipse(x, y - 1, r, r * .72, -.2, 0, Math.PI * 2);
+      context.strokeStyle = `rgba(192, 232, 255, ${opacity * .5 / (ring + 1)})`;
+      context.lineWidth = .9;
+      context.stroke();
+    }
+  }
+  rippleFrame = ripples.length ? requestAnimationFrame(drawRipples) : 0;
+}
+function clearRipples() {
+  cancelAnimationFrame(rippleFrame); rippleFrame = 0; ripples = [];
+  rippleContext.clearRect(0, 0, rippleWidth, rippleHeight);
+  modalContext.clearRect(0, 0, rippleWidth, rippleHeight);
+}
+addEventListener('pointermove', event => {
+  if (motionPreference.matches || !finePointer.matches || event.pointerType === 'touch') return;
+  const now = performance.now();
+  if (now - lastRipple.time < 45 || Math.hypot(event.clientX - lastRipple.x, event.clientY - lastRipple.y) < 13) return;
+  lastRipple = {x:event.clientX, y:event.clientY, time:now};
+  ripples.push({x:event.clientX, y:event.clientY, born:now});
+  if (ripples.length > 24) ripples.shift();
+  if (!rippleFrame) rippleFrame = requestAnimationFrame(drawRipples);
+}, {passive:true});
+addEventListener('resize', () => {clearRipples(); sizeRipples();});
+motionPreference.addEventListener('change', clearRipples);
+addEventListener('visibilitychange', () => {if (document.hidden) clearRipples();});
+dialog.addEventListener('close', clearRipples);
+sizeRipples();

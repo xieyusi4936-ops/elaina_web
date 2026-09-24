@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#091329">
 <title>Elaina — 个人作品集</title><meta name="description" content="Elaina 的个人作品集，探索创作、项目与视觉世界。">
-<link rel="preload" as="image" href="assets/scene-1.jpg"><link rel="stylesheet" href="style.css?v=2"><script src="app.js?v=2" defer></script>
+<link rel="preload" as="image" href="assets/scene-1.jpg"><link rel="stylesheet" href="style.css?v=3"><script src="app.js?v=3" defer></script>
 </head>
 <body>
+<canvas class="water-ripples" aria-hidden="true"></canvas>
 <header class="header"><a class="brand" href="#home" aria-label="Elaina 首页">elaina<span>®</span></a><nav aria-label="主导航"><button data-scene="1">关于我</button><a href="#projects">作品集 <span>↗</span></a></nav></header>
 <main>
 <section id="home" class="story" aria-label="个人介绍">
@@ -26,5 +27,5 @@
 <button class="project-card wide" data-project="2"><div class="cover"><img src="assets/scene-3.jpg" alt="角色与设计工具视觉预览" loading="lazy"><span class="open-icon" aria-hidden="true">↗</span></div><div class="card-caption"><div><span class="eyebrow">VISUAL PREVIEW / 03</span><h3>创作进行时</h3></div><span class="tag">素材预览</span></div></button>
 </div></section>
 </main><footer><a class="brand" href="#home">elaina<span>®</span></a><span>个人作品集</span><a href="#home">回到顶部 ↑</a></footer>
-<dialog id="project-dialog" aria-labelledby="project-title"><button class="close" aria-label="关闭作品">×</button><div class="project-content"><div class="detail-heading"><span class="eyebrow">VISUAL PREVIEW</span><h2 id="project-title"></h2><p>素材展示 · 正式项目内容待补充</p></div><img id="detail-image" alt=""><div class="detail-notes"><span class="eyebrow">ABOUT THIS WORK</span><h3>关于这个作品</h3><p>这里将展示项目背景、我的职责、创作过程与最终成果。</p><p>目前展示的是网站原始视觉素材，不代表已完成的项目案例。</p><button class="text-link close-bottom">返回作品集 ↗</button></div></div></dialog>
+<dialog id="project-dialog" aria-labelledby="project-title"><canvas class="water-ripples dialog-ripples" aria-hidden="true"></canvas><button class="close" aria-label="关闭作品">×</button><div class="project-content"><div class="detail-heading"><span class="eyebrow">VISUAL PREVIEW</span><h2 id="project-title"></h2><p>素材展示 · 正式项目内容待补充</p></div><img id="detail-image" alt=""><div class="detail-notes"><span class="eyebrow">ABOUT THIS WORK</span><h3>关于这个作品</h3><p>这里将展示项目背景、我的职责、创作过程与最终成果。</p><p>目前展示的是网站原始视觉素材，不代表已完成的项目案例。</p><button class="text-link close-bottom">返回作品集 ↗</button></div></div></dialog>
 </body></html>
